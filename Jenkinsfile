@@ -11,7 +11,7 @@ pipeline {
         stage('Clone Repo') {
             steps {
                 script {
-                    cloneRepo()
+                    cloneRepo(repoName: 'mokadi-suryaprasad/jenkins-shared-library', branch: 'main')
                 }
             }
         }
@@ -21,14 +21,18 @@ pipeline {
                 stage('Backend Go Pipeline') {
                     steps {
                         script {
-                            runPipeline('go')
+                            catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
+                                runPipeline('go')
+                            }
                         }
                     }
                 }
                 stage('Frontend HTML Pipeline') {
                     steps {
                         script {
-                            runPipeline('html')
+                            catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
+                                runPipeline('html')
+                            }
                         }
                     }
                 }
@@ -44,13 +48,16 @@ pipeline {
         }
         failure {
             script {
-                sendNotification(success: false, language: 'all')
+                if (currentBuild.result == 'FAILURE') {
+                    def failedStages = findFailedStages()
+                    sendNotification(success: false, language: failedStages)
+                }
             }
         }
     }
 }
 
-// Function Definition (Moved outside pipeline block)
+// Function to Run the Pipeline
 def runPipeline(String language) {
     stage("Run Tests for ${language}") {
         runTests(language: language)
@@ -83,4 +90,16 @@ def runPipeline(String language) {
     stage("Update Kubernetes for ${language}") {
         updateKubernetes(language: language)
     }
+}
+
+// Helper Function to Detect Failed Stages
+def findFailedStages() {
+    def failedLanguages = []
+    if (currentBuild.rawBuild.getActions(org.jenkinsci.plugins.workflow.support.steps.StageStepExecution.class).any { it.displayName.contains('Go') && it.result == Result.FAILURE }) {
+        failedLanguages.add('go')
+    }
+    if (currentBuild.rawBuild.getActions(org.jenkinsci.plugins.workflow.support.steps.StageStepExecution.class).any { it.displayName.contains('HTML') && it.result == Result.FAILURE }) {
+        failedLanguages.add('html')
+    }
+    return failedLanguages.join(',')
 }
