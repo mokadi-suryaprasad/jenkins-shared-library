@@ -4,7 +4,7 @@ pipeline {
     agent any
 
     environment {
-        LANGUAGES = "go,html"  // Store as a string
+        LANGUAGES = "go,html"  // Comma-separated as environment variables don't support lists
     }
 
     stages {
@@ -17,16 +17,20 @@ pipeline {
         }
 
         stage('Run Pipelines for Both Go and HTML') {
-            steps {
-                script {
-                    def languages = env.LANGUAGES.split(',')
-                    parallel(
-                        languages.collectEntries { language ->
-                            [(language): {
-                                runPipeline(language)
-                            }]
+            parallel {
+                stage('Backend Go Pipeline') {
+                    steps {
+                        script {
+                            runPipeline('go')
                         }
-                    )
+                    }
+                }
+                stage('Frontend HTML Pipeline') {
+                    steps {
+                        script {
+                            runPipeline('html')
+                        }
+                    }
                 }
             }
         }
@@ -46,38 +50,37 @@ pipeline {
     }
 }
 
-script {
-    def runPipeline(String language) {
-        stage("Run Tests for ${language}") {
-            runTests(language: language)
-        }
+// Function Definition (Moved outside pipeline block)
+def runPipeline(String language) {
+    stage("Run Tests for ${language}") {
+        runTests(language: language)
+    }
 
-        stage("SonarQube Analysis for ${language}") {
-            sonarQubeAnalysis(language: language)
-        }
+    stage("SonarQube Analysis for ${language}") {
+        sonarQubeAnalysis(language: language)
+    }
 
-        stage("Sonar Quality Gate for ${language}") {
-            sonarQualityGate()
-        }
+    stage("Sonar Quality Gate for ${language}") {
+        sonarQualityGate()
+    }
 
-        stage("Build Code for ${language}") {
-            buildCode(language: language)
-        }
+    stage("Build Code for ${language}") {
+        buildCode(language: language)
+    }
 
-        stage("Build Docker Image for ${language}") {
-            buildDockerImage(language: language)
-        }
+    stage("Build Docker Image for ${language}") {
+        buildDockerImage(language: language)
+    }
 
-        stage("Trivy Scan for ${language}") {
-            trivyScan(language: language)
-        }
+    stage("Trivy Scan for ${language}") {
+        trivyScan(language: language)
+    }
 
-        stage("Push Docker Image for ${language}") {
-            pushDockerImage(language: language)
-        }
+    stage("Push Docker Image for ${language}") {
+        pushDockerImage(language: language)
+    }
 
-        stage("Update Kubernetes for ${language}") {
-            updateKubernetes(language: language)
-        }
+    stage("Update Kubernetes for ${language}") {
+        updateKubernetes(language: language)
     }
 }
